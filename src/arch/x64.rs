@@ -11,34 +11,39 @@ use crate::fallback;
 pub use crate::fallback::find_in_4;
 
 #[inline]
-pub fn find_in_16(needle: u8, haystack: &[u8; 16]) -> usize {
+pub fn find_in_16(needle: u8, haystack: &[u8; 16], len: usize) -> Option<usize> {
     if is_x86_feature_detected!("avx") {
         let bitfield = unsafe { avx_eq_16(needle, haystack.as_ptr()) };
-        find_in_bitfield(bitfield)
+        find_in_bitfield(bitfield, len)
     } else {
-        fallback::find_in_16(needle, haystack)
+        fallback::find_in_16(needle, haystack, len)
     }
 }
 
 #[inline]
-pub fn find_in_32(needle: u8, haystack: &[u8; 32]) -> usize {
+pub fn find_in_32(needle: u8, haystack: &[u8; 32], len: usize) -> Option<usize> {
     let bitfield = if is_x86_feature_detected!("avx2") {
         unsafe { avx2_eq_32(needle, haystack.as_ptr()) }
     } else if is_x86_feature_detected!("avx") {
         unsafe { avx_eq_32(needle, haystack.as_ptr()) }
     } else {
-        return fallback::find_in_32(needle, haystack);
+        return fallback::find_in_32(needle, haystack, len);
     };
 
-    find_in_bitfield(bitfield)
+    find_in_bitfield(bitfield, len)
 }
 
 /// Finds the index of the last 1 in the bitfield, up-to len
 ///
 /// Combines with avx_find_in methods
 #[inline]
-fn find_in_bitfield(bitfield: i32) -> usize {
-    bitfield.trailing_zeros() as usize
+fn find_in_bitfield(bitfield: i32, len: usize) -> Option<usize> {
+    let idx = bitfield.trailing_zeros() as usize;
+    if len > idx {
+        Some(idx)
+    } else {
+        None
+    }
 }
 
 /// Returns a bitfield, where all elements in haystack that are equal to needle = 1, else 0
@@ -73,23 +78,16 @@ unsafe fn avx2_eq_32(needle: u8, haystack: *const u8) -> i32 {
 
 #[cfg(test)]
 mod tests {
-    use super::super::bounds_check_idx;
     use super::*;
 
     #[test]
     fn test_avx_find_16() {
         fn test_all(needle: u8, haystack: &[u8; 16], len: usize, expected: Option<usize>) {
             assert_eq!(
-                bounds_check_idx(
-                    find_in_bitfield(unsafe { avx_eq_16(needle, haystack.as_ptr()) }),
-                    len
-                ),
+                find_in_bitfield(unsafe { avx_eq_16(needle, haystack.as_ptr()) }, len),
                 expected
             );
-            assert_eq!(
-                bounds_check_idx(find_in_16(needle, haystack), len),
-                expected
-            );
+            assert_eq!(find_in_16(needle, haystack, len), expected);
         }
 
         let mut array = [0; 16];
@@ -112,23 +110,14 @@ mod tests {
     fn test_avx_find_32() {
         fn test_all(needle: u8, haystack: &[u8; 32], len: usize, expected: Option<usize>) {
             assert_eq!(
-                bounds_check_idx(
-                    find_in_bitfield(unsafe { avx2_eq_32(needle, haystack.as_ptr()) }),
-                    len
-                ),
+                find_in_bitfield(unsafe { avx2_eq_32(needle, haystack.as_ptr()) }, len),
                 expected
             );
             assert_eq!(
-                bounds_check_idx(
-                    find_in_bitfield(unsafe { avx_eq_32(needle, haystack.as_ptr()) }),
-                    len
-                ),
+                find_in_bitfield(unsafe { avx_eq_32(needle, haystack.as_ptr()) }, len),
                 expected
             );
-            assert_eq!(
-                bounds_check_idx(find_in_32(needle, haystack), len),
-                expected
-            );
+            assert_eq!(find_in_32(needle, haystack, len), expected);
         }
 
         let mut array = [0; 32];
