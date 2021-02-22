@@ -13,7 +13,6 @@ mod arch;
 
 mod fallback;
 
-
 pub trait FastFind {
     /// Returns the index of the first element in the haystack that matches needle, up-to len, or None
     fn fast_find(&self, needle: u8, len: usize) -> Option<usize>;

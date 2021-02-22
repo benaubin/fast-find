@@ -24,8 +24,6 @@ pub fn find_in_32(needle: u8, haystack: &[u8; 32], len: usize) -> Option<usize> 
     find_in(needle, haystack, len)
 }
 
-
-
 #[cfg(test)]
 mod tests {
     use super::*;
