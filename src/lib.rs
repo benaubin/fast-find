@@ -1,7 +1,7 @@
 //! `fast-find` finds bytes fast.
 //!
-//! Fast-find uses SIMD instructions to make searching small byte arrays fast, or
-//! falls back to linear search when not possible.
+//! Fast-find uses SIMD instructions to make searching small byte arrays fast.
+//! It falls back to linear search when these instructions are not available.
 
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 #[path = "arch/x64.rs"]
@@ -14,7 +14,8 @@ mod arch;
 mod fallback;
 
 pub trait FastFind {
-    /// Returns the index of the first element in the haystack that matches needle, up-to len, or None
+    /// Returns the index of the first element in the haystack that matches
+    /// `needle`. If the index is larger than `len`, it will return None.
     fn fast_find(&self, needle: u8, len: usize) -> Option<usize>;
 }
 
