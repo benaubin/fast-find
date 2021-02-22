@@ -18,25 +18,22 @@ pub trait FastFind {
     fn fast_find(&self, needle: u8, len: usize) -> Option<usize>;
 }
 
-impl FastFind for [u8; 4] {
-    #[inline]
-    fn fast_find(&self, needle: u8, len: usize) -> Option<usize> {
-        arch::find_in_4(needle, self, len)
-    }
+macro_rules! impl_fast_find {
+    ($($bytes:literal),*) => {
+        paste::paste! {
+            $(
+                impl FastFind for [u8; $bytes] {
+                    #[inline]
+                    fn fast_find(&self, needle: u8, len: usize) -> Option<usize> {
+                        arch::[<find_in_ $bytes>](needle, self, len)
+                    }
+                }
+            )*
+        }
+    };
 }
 
-impl FastFind for [u8; 16] {
-    fn fast_find(&self, needle: u8, len: usize) -> Option<usize> {
-        arch::find_in_16(needle, self, len)
-    }
-}
-
-impl FastFind for [u8; 32] {
-    #[inline]
-    fn fast_find(&self, needle: u8, len: usize) -> Option<usize> {
-        arch::find_in_32(needle, self, len)
-    }
-}
+impl_fast_find!(4, 16, 32);
 
 #[cfg(test)]
 mod tests {
