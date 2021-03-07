@@ -11,37 +11,26 @@ use crate::fallback;
 pub use crate::fallback::find_in_4;
 
 #[inline]
-pub fn find_in_16(needle: u8, haystack: &[u8; 16], len: usize) -> Option<usize> {
+pub fn find_in_16(needle: u8, haystack: &[u8; 16]) -> usize {
     if is_x86_feature_detected!("sse2") {
         let bitfield = unsafe { sse2_eq_16(needle, haystack.as_ptr()) };
-        find_in_bitfield(bitfield, len)
+        bitfield.trailing_zeros() as usize
     } else {
-        fallback::find_in_16(needle, haystack, len)
+        fallback::find_in_16(needle, haystack)
     }
 }
 
 #[inline]
-pub fn find_in_32(needle: u8, haystack: &[u8; 32], len: usize) -> Option<usize> {
+pub fn find_in_32(needle: u8, haystack: &[u8; 32]) -> usize {
     let bitfield = if is_x86_feature_detected!("avx2") {
         unsafe { avx2_eq_32(needle, haystack.as_ptr()) }
     } else if is_x86_feature_detected!("sse2") {
         unsafe { sse2_eq_32(needle, haystack.as_ptr()) }
     } else {
-        return fallback::find_in_32(needle, haystack, len);
+        return fallback::find_in_32(needle, haystack);
     };
 
-    find_in_bitfield(bitfield, len)
-}
-
-/// Finds the index of the last 1 in the bitfield, up-to len
-#[inline]
-fn find_in_bitfield(bitfield: i32, len: usize) -> Option<usize> {
-    let idx = bitfield.trailing_zeros() as usize;
-    if len > idx {
-        Some(idx)
-    } else {
-        None
-    }
+    bitfield.trailing_zeros() as usize
 }
 
 /// Returns a bitfield, where all elements in haystack that are equal to needle = 1, else 0
@@ -80,58 +69,50 @@ mod tests {
 
     #[test]
     fn test_avx_find_16() {
-        fn test_all(needle: u8, haystack: &[u8; 16], len: usize, expected: Option<usize>) {
+        fn test_all(needle: u8, haystack: &[u8; 16], expected: usize) {
             assert_eq!(
-                find_in_bitfield(unsafe { sse2_eq_16(needle, haystack.as_ptr()) }, len),
+                unsafe { sse2_eq_16(needle, haystack.as_ptr()) }.trailing_zeros() as usize,
                 expected
             );
-            assert_eq!(find_in_16(needle, haystack, len), expected);
+            assert_eq!(find_in_16(needle, haystack), expected);
         }
 
         let mut array = [0; 16];
 
-        test_all(4, &array, 16, None);
+        test_all(4, &array, 32);
 
         array[4] = 4;
         array[6] = 10;
 
-        test_all(4, &array, 16, Some(4));
-        test_all(5, &array, 16, None);
-        test_all(10, &array, 16, Some(6));
-
-        test_all(4, &array, 5, Some(4));
-        test_all(5, &array, 5, None);
-        test_all(10, &array, 5, None);
+        test_all(4, &array, 4);
+        test_all(5, &array, 32);
+        test_all(10, &array, 6);
     }
 
     #[test]
     fn test_avx_find_32() {
-        fn test_all(needle: u8, haystack: &[u8; 32], len: usize, expected: Option<usize>) {
+        fn test_all(needle: u8, haystack: &[u8; 32], expected: usize) {
             assert_eq!(
-                find_in_bitfield(unsafe { avx2_eq_32(needle, haystack.as_ptr()) }, len),
+                (unsafe { avx2_eq_32(needle, haystack.as_ptr()) }).trailing_zeros() as usize,
                 expected
             );
             assert_eq!(
-                find_in_bitfield(unsafe { sse2_eq_32(needle, haystack.as_ptr()) }, len),
+                (unsafe { sse2_eq_32(needle, haystack.as_ptr()) }).trailing_zeros() as usize,
                 expected
             );
-            assert_eq!(find_in_32(needle, haystack, len), expected);
+            assert_eq!(find_in_32(needle, haystack), expected);
         }
 
         let mut array = [0; 32];
 
-        test_all(4, &array, 32, None);
+        test_all(4, &array, 32);
 
         array[4] = 4;
         array[6] = 10;
         array[20] = 5;
 
-        test_all(4, &array, 32, Some(4));
-        test_all(5, &array, 32, Some(20));
-        test_all(10, &array, 32, Some(6));
-
-        test_all(4, &array, 5, Some(4));
-        test_all(5, &array, 5, None);
-        test_all(10, &array, 5, None);
+        test_all(4, &array, 4);
+        test_all(5, &array, 20);
+        test_all(10, &array, 6);
     }
 }
